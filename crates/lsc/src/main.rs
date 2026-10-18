@@ -7,8 +7,29 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use lsc::{
-    check_directory, format_report, parse_spec, scan_cas_path, scan_specs_dir, ValidationReport,
+    check_directory, format_report, parse_folder_name, parse_folder_spec, parse_spec,
+    scan_cas_path, scan_specs_dir, SpecDocument, ValidationReport,
 };
+
+/// Parse one specification file. A `README.md` inside a `NNN-slug/` folder is a folder
+/// specification whose stem is the folder name (SPEC-0005).
+fn parse_spec_file(
+    path: &Path,
+    file_name: &str,
+    content: &str,
+    report: &mut ValidationReport,
+) -> Option<SpecDocument> {
+    if file_name == "README.md" {
+        let folder = path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|n| n.to_str());
+        if let Some(folder) = folder.filter(|f| parse_folder_name(f).is_some()) {
+            return parse_folder_spec(folder, content, report);
+        }
+    }
+    parse_spec(file_name, content, report)
+}
 
 fn print_usage() {
     println!("lsc — LeanSpec AST parser, architectural validator & CAS listing engine");
@@ -151,7 +172,7 @@ fn main() -> ExitCode {
             };
 
             let mut report = ValidationReport::default();
-            match parse_spec(file_name, &content, &mut report) {
+            match parse_spec_file(path, file_name, &content, &mut report) {
                 Some(doc) => match serde_json::to_string_pretty(&doc) {
                     Ok(json) => {
                         println!("{json}");
@@ -186,7 +207,7 @@ fn main() -> ExitCode {
                     }
                 };
                 let mut report = ValidationReport::default();
-                if let Some(doc) = parse_spec(file_name, &content, &mut report) {
+                if let Some(doc) = parse_spec_file(path, file_name, &content, &mut report) {
                     print_doc_theorems(&doc);
                     ExitCode::SUCCESS
                 } else {

@@ -40,4 +40,7 @@ pub use receipt::{
     ValidationReceipt, ValidityFingerprint, ValidityInput, ValidityInputKind, ValidityStrength,
     VALIDATION_RECEIPT_SCHEMA_VERSION, VALIDITY_FINGERPRINT_SCHEMA_VERSION,
 };
-pub use rules::{parse_file_name, parse_spec, LEGACY_SECTIONS, MODERN_SECTIONS};
+pub use rules::{
+    parse_file_name, parse_folder_name, parse_folder_spec, parse_spec, LEGACY_SECTIONS,
+    MODERN_SECTIONS,
+};
