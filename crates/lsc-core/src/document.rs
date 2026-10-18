@@ -20,12 +20,16 @@ pub enum SpecStatus {
 
 impl SpecStatus {
     /// Parse a status string into `SpecStatus`.
+    ///
+    /// Also accepts the alias words of other LeanSpec tools (SPEC-0001, "Status
+    /// vocabulary"): `proposed` and `draft` as `Planned`, `accepted` as `InProgress`,
+    /// and `implemented` as `Complete`.
     #[must_use]
     pub fn from_str_lossy(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
-            "planned" => Some(Self::Planned),
-            "in-progress" => Some(Self::InProgress),
-            "complete" => Some(Self::Complete),
+            "planned" | "proposed" | "draft" => Some(Self::Planned),
+            "in-progress" | "accepted" => Some(Self::InProgress),
+            "complete" | "implemented" => Some(Self::Complete),
             "archived" => Some(Self::Archived),
             _ => None,
         }
