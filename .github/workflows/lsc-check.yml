@@ -27,7 +27,7 @@ on:
         description: lsc commit to build; must equal the pin the embedded lockfile was generated for
         required: false
         type: string
-        default: 8a6c8acf7cbb2ed549e08a28c1aa190488bcac36
+        default: d19f393f7f9a65373d4a50f0734d9a927038c431
       spec-link-mode:
         description: warn (annotate, pass) or error (fail) for feat/fix PRs that touch and name no spec
         required: false
@@ -47,7 +47,7 @@ jobs:
     name: lsc check
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     env:
-      LSC_PIN: 8a6c8acf7cbb2ed549e08a28c1aa190488bcac36
+      LSC_PIN: d19f393f7f9a65373d4a50f0734d9a927038c431
       LSC_LOCK_SHA256: 484cf356af31ec6365fa9a13605514607a9eb8afac1f5d4fa202e2b1358fe463
     steps:
       - name: Check lsc-rev against the vendored lockfile pin
@@ -124,7 +124,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/lsc-bin
-          key: lsc-${{ runner.os }}-${{ runner.arch }}-8a6c8acf7cbb2ed549e08a28c1aa190488bcac36-484cf356af31ec6365fa9a13605514607a9eb8afac1f5d4fa202e2b1358fe463
+          key: lsc-${{ runner.os }}-${{ runner.arch }}-d19f393f7f9a65373d4a50f0734d9a927038c431-484cf356af31ec6365fa9a13605514607a9eb8afac1f5d4fa202e2b1358fe463
 
       - name: Install Rust 1.85.0 (lsc rust-toolchain.toml)
         if: steps.lsc-cache.outputs.cache-hit != 'true'
