@@ -3,9 +3,17 @@ use std::fs;
 use std::path::Path;
 
 use lsc_core::{
-    compute_blake3_hash, parse_file_name, parse_spec, CasEntry, CasEntryType, CasListing,
-    SpecDocument, ValidationMessage, ValidationReport,
+    compute_blake3_hash, parse_file_name, parse_folder_name, parse_folder_spec, parse_spec,
+    CasEntry, CasEntryType, CasListing, SpecDocument, ValidationMessage, ValidationReport,
 };
+
+/// Where a discovered specification lives (SPEC-0005).
+enum SpecSource {
+    /// Flat layout: `NNNN-kebab-slug.md`.
+    Flat(String),
+    /// Folder layout: `NNN-kebab-slug/README.md`.
+    Folder(String),
+}
 
 /// Result of scanning a specification directory.
 #[derive(Debug, Clone)]
@@ -32,20 +40,26 @@ pub fn scan_specs_dir(dir: &Path) -> Result<ScanResult, std::io::Error> {
         return Ok(ScanResult { documents, report });
     }
 
+    // Flat `.md` files, and folders whose name matches the folder layout (SPEC-0005).
+    // Other directories, for example `formal/`, are ignored.
     let mut names: Vec<String> = Vec::new();
+    let mut folders: Vec<String> = Vec::new();
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
-        if entry.file_type()?.is_file() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".md") {
-                    names.push(name);
-                }
-            }
+        let file_type = entry.file_type()?;
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if file_type.is_file() && name.ends_with(".md") {
+            names.push(name);
+        } else if file_type.is_dir() && parse_folder_name(&name).is_some() {
+            folders.push(name);
         }
     }
     names.sort();
+    folders.sort();
 
-    if names.is_empty() {
+    if names.is_empty() && folders.is_empty() {
         report.notices.push(format!(
             "no markdown specifications found in '{}'",
             dir.display()
@@ -53,9 +67,10 @@ pub fn scan_specs_dir(dir: &Path) -> Result<ScanResult, std::io::Error> {
         return Ok(ScanResult { documents, report });
     }
 
-    let mut numbers: BTreeMap<String, String> = BTreeMap::new();
+    // Keyed by numeric value, so `001` (folder) and `0001` (flat) collide.
+    let mut numbers: BTreeMap<u32, String> = BTreeMap::new();
     let mut stems: BTreeSet<String> = BTreeSet::new();
-    let mut spec_names: Vec<String> = Vec::new();
+    let mut sources: Vec<SpecSource> = Vec::new();
 
     // R01: Verify file names and number uniqueness
     for name in names.iter().filter(|n| n.as_str() != "README.md") {
@@ -70,31 +85,62 @@ pub fn scan_specs_dir(dir: &Path) -> Result<ScanResult, std::io::Error> {
             continue;
         };
 
-        if let Some(existing) = numbers.get(&number) {
+        if !claim_number(&mut numbers, &number, name, &rel_path, &mut report) {
+            continue;
+        }
+        let stem = name.strip_suffix(".md").unwrap_or(name).to_owned();
+        stems.insert(stem);
+        sources.push(SpecSource::Flat(name.clone()));
+    }
+
+    // R01 for the folder layout: README.md is required, numbers are shared with flat specs.
+    for folder in &folders {
+        let rel_path = format!("{}/{}", dir.display(), folder);
+        if !dir.join(folder).join("README.md").is_file() {
             report.errors.push(ValidationMessage {
                 file: rel_path,
-                line: Some(1),
+                line: None,
                 rule: "R01".to_owned(),
-                message: format!("specification number '{number}' already used by '{existing}'"),
+                message: "folder specification must contain README.md".to_owned(),
             });
             continue;
         }
-
-        numbers.insert(number, name.clone());
-        let stem = name.strip_suffix(".md").unwrap_or(name).to_owned();
-        stems.insert(stem);
-        spec_names.push(name.clone());
+        let Some((number, _slug)) = parse_folder_name(folder) else {
+            continue;
+        };
+        let display = format!("{folder}/README.md");
+        if !claim_number(&mut numbers, &number, &display, &rel_path, &mut report) {
+            continue;
+        }
+        stems.insert(folder.clone());
+        sources.push(SpecSource::Folder(folder.clone()));
     }
 
-    // Parse each specification file
-    for name in &spec_names {
-        let rel_path = format!("{}/{}", dir.display(), name);
-        let file_path = dir.join(name);
+    // Parse each specification. Links resolve from the specification's own directory (R12).
+    let mut doc_paths: BTreeMap<String, String> = BTreeMap::new();
+    for source in &sources {
+        let (rel_path, file_path, base_dir) = match source {
+            SpecSource::Flat(name) => (
+                format!("{}/{}", dir.display(), name),
+                dir.join(name),
+                dir.to_path_buf(),
+            ),
+            SpecSource::Folder(folder) => (
+                format!("{}/{}/README.md", dir.display(), folder),
+                dir.join(folder).join("README.md"),
+                dir.join(folder),
+            ),
+        };
         match fs::read_to_string(&file_path) {
             Ok(content) => {
-                if let Some(doc) = parse_spec(name, &content, &mut report) {
+                let parsed = match source {
+                    SpecSource::Flat(name) => parse_spec(name, &content, &mut report),
+                    SpecSource::Folder(folder) => parse_folder_spec(folder, &content, &mut report),
+                };
+                if let Some(doc) = parsed {
                     // Check links in document (R12)
-                    check_relative_links(&rel_path, dir, &content, &mut report);
+                    check_relative_links(&rel_path, &base_dir, &content, &mut report);
+                    doc_paths.insert(doc.stem.clone(), rel_path);
                     documents.push(doc);
                 }
             }
@@ -111,7 +157,10 @@ pub fn scan_specs_dir(dir: &Path) -> Result<ScanResult, std::io::Error> {
 
     // R03: Verify depends_on references exist
     for doc in &documents {
-        let rel_path = format!("{}/{}.md", dir.display(), doc.stem);
+        let rel_path = doc_paths
+            .get(&doc.stem)
+            .cloned()
+            .unwrap_or_else(|| format!("{}/{}.md", dir.display(), doc.stem));
         for dep in &doc.frontmatter.depends_on {
             if !stems.contains(dep) {
                 report.errors.push(ValidationMessage {
@@ -144,7 +193,7 @@ pub fn scan_specs_dir(dir: &Path) -> Result<ScanResult, std::io::Error> {
                 });
             }
         }
-    } else if !spec_names.is_empty() {
+    } else if !sources.is_empty() {
         report.warnings.push(ValidationMessage {
             file: format!("{}/README.md", dir.display()),
             line: None,
@@ -249,14 +298,8 @@ fn check_readme_index(
                 rest = &rest[close + 1..];
 
                 let target_file = target.split('#').next().unwrap_or("");
-                let stem = target_file
-                    .strip_prefix("./")
-                    .unwrap_or(target_file)
-                    .strip_suffix(".md")
-                    .unwrap_or(target_file);
-
-                if parse_file_name(&format!("{stem}.md")).is_some() {
-                    listed_stems.insert(stem.to_owned());
+                if let Some(stem) = catalog_stem(target_file) {
+                    listed_stems.insert(stem);
                 }
             }
         }
@@ -272,6 +315,45 @@ fn check_readme_index(
             });
         }
     }
+}
+
+/// R01: record a specification number, or report it as a duplicate. Numbers compare by
+/// numeric value across both layouts (SPEC-0005). Returns whether the number was free.
+fn claim_number(
+    numbers: &mut BTreeMap<u32, String>,
+    number: &str,
+    display: &str,
+    rel_path: &str,
+    report: &mut ValidationReport,
+) -> bool {
+    let Ok(value) = number.parse::<u32>() else {
+        return false;
+    };
+    if let Some(existing) = numbers.get(&value) {
+        report.errors.push(ValidationMessage {
+            file: rel_path.to_owned(),
+            line: Some(1),
+            rule: "R01".to_owned(),
+            message: format!("specification number '{number}' already used by '{existing}'"),
+        });
+        return false;
+    }
+    numbers.insert(value, display.to_owned());
+    true
+}
+
+/// Stem that a catalog link points at (R11): a flat `NNNN-slug.md`, or a folder
+/// specification as `NNN-slug/README.md` or `NNN-slug/` (SPEC-0005).
+fn catalog_stem(target: &str) -> Option<String> {
+    let target = target.strip_prefix("./").unwrap_or(target);
+    if let Some(folder) = target
+        .strip_suffix("/README.md")
+        .or_else(|| target.strip_suffix('/'))
+    {
+        return parse_folder_name(folder).map(|_| folder.to_owned());
+    }
+    let stem = target.strip_suffix(".md").unwrap_or(target);
+    parse_file_name(&format!("{stem}.md")).map(|_| stem.to_owned())
 }
 
 /// Scans a path and computes its content-addressed BLAKE3 digest.

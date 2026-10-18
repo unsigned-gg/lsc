@@ -40,6 +40,31 @@ pub fn parse_file_name(file_name: &str) -> Option<(String, String)> {
     None
 }
 
+/// Parse the specification number and slug from a folder-layout directory name.
+///
+/// Returns `Some((number, slug))` if the name matches `NNN-kebab-slug` or `NNNN-kebab-slug`
+/// (SPEC-0005), for example the `001-my-first-feature` folder that `leanspec create` writes.
+#[must_use]
+pub fn parse_folder_name(dir_name: &str) -> Option<(String, String)> {
+    let (num_part, slug_part) = dir_name.split_once('-')?;
+    let number_ok =
+        (3..=4).contains(&num_part.len()) && num_part.chars().all(|c| c.is_ascii_digit());
+    let slug_ok = !slug_part.is_empty()
+        && slug_part
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    (number_ok && slug_ok).then(|| (num_part.to_owned(), slug_part.to_owned()))
+}
+
+/// Identity of a specification, from its flat file name or its folder name.
+struct SpecIdentity {
+    stem: String,
+    number: String,
+    slug: String,
+    /// R04: the H1 must equal the stem (flat layout), or need only exist (folder layout).
+    h1_equals_stem: bool,
+}
+
 /// Parse raw markdown text into a `SpecDocument` without filesystem access.
 ///
 /// # Errors
@@ -67,6 +92,59 @@ pub fn parse_spec(
         .strip_suffix(".md")
         .unwrap_or(file_name)
         .to_owned();
+    let identity = SpecIdentity {
+        stem,
+        number,
+        slug,
+        h1_equals_stem: true,
+    };
+    parse_spec_body(file_name, identity, text, report)
+}
+
+/// Parse a folder-layout specification (`NNN-kebab-slug/README.md`) without filesystem access.
+///
+/// The folder name is the stem, number and slug (SPEC-0005). R04 requires only that the
+/// document has an H1, because tools such as `leanspec` write a human title there.
+///
+/// # Errors
+/// Emits errors in `ValidationReport` if the folder name, frontmatter or structural syntax
+/// is broken.
+pub fn parse_folder_spec(
+    dir_name: &str,
+    text: &str,
+    report: &mut ValidationReport,
+) -> Option<SpecDocument> {
+    let file_name = format!("{dir_name}/README.md");
+    let Some((number, slug)) = parse_folder_name(dir_name) else {
+        report.errors.push(ValidationMessage {
+            file: file_name,
+            line: Some(1),
+            rule: "R01".to_owned(),
+            message: "folder name must match NNN-kebab-slug or NNNN-kebab-slug".to_owned(),
+        });
+        return None;
+    };
+    let identity = SpecIdentity {
+        stem: dir_name.to_owned(),
+        number,
+        slug,
+        h1_equals_stem: false,
+    };
+    parse_spec_body(&file_name, identity, text, report)
+}
+
+fn parse_spec_body(
+    file_name: &str,
+    identity: SpecIdentity,
+    text: &str,
+    report: &mut ValidationReport,
+) -> Option<SpecDocument> {
+    let SpecIdentity {
+        stem,
+        number,
+        slug,
+        h1_equals_stem,
+    } = identity;
     let lines: Vec<&str> = text.lines().collect();
     let line_count = lines.len();
 
@@ -114,7 +192,7 @@ pub fn parse_spec(
 
     let h1_title = match h1 {
         Some((line_num, title)) => {
-            if title != stem {
+            if h1_equals_stem && title != stem {
                 report.errors.push(ValidationMessage {
                     file: file_name.to_owned(),
                     line: Some(line_num),
@@ -125,11 +203,16 @@ pub fn parse_spec(
             title
         }
         None => {
+            let message = if h1_equals_stem {
+                format!("missing top-level H1 heading equal to '{stem}'")
+            } else {
+                "missing top-level H1 heading in folder specification README.md".to_owned()
+            };
             report.errors.push(ValidationMessage {
                 file: file_name.to_owned(),
                 line: None,
                 rule: "R04".to_owned(),
-                message: format!("missing top-level H1 heading equal to '{stem}'"),
+                message,
             });
             return None;
         }
