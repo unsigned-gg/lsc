@@ -87,6 +87,19 @@ SpecDocument
 └── line_count: usize
 ```
 
+### Status vocabulary
+
+The `status` frontmatter key maps to one of four canonical `SpecStatus` values. The parser also accepts alias words from other LeanSpec tools, so a repository does not need to rename its statuses. Matching ignores case and surrounding whitespace.
+
+| Canonical | Also accepted |
+|---|---|
+| `planned` | `proposed`, `draft` |
+| `in-progress` | `accepted` |
+| `complete` | `implemented` |
+| `archived` | — |
+
+An alias parses to its canonical value. Every rule that reads the status, for example R14 for `complete`, applies to the alias in the same way. The parser does not rewrite the source file. A status word outside this table is an R02 error.
+
 ### Content-Addressed Storage (CAS)
 
 Every file and directory tree maps to a cryptographic digest:

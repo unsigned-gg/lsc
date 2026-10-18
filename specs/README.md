@@ -17,7 +17,9 @@ boundary rule, and verification gate is specified as an individual, versioned co
 
 ## Specification Lifecycle
 
-- `planned`: Under architectural evaluation.
-- `in-progress`: Implementation or formal verification active.
-- `complete`: Implemented with verified test suites and theorem proofs.
+- `planned`: Under architectural evaluation. Also accepted: `proposed`, `draft`.
+- `in-progress`: Implementation or formal verification active. Also accepted: `accepted`.
+- `complete`: Implemented with verified test suites and theorem proofs. Also accepted: `implemented`.
 - `archived`: Deprecated or superseded.
+
+The aliases are defined in [SPEC-0001](./SPEC-0001-leanspec-ast.md), section "Status vocabulary".
