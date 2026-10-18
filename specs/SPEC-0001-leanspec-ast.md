@@ -98,10 +98,10 @@ Every file and directory tree maps to a cryptographic digest:
 
 | Rule | Severity | Condition |
 |---|---|---|
-| R01 | Error | File name must match `NNNN-kebab-slug.md` or `SPEC-NNNN-kebab-slug.md`. |
+| R01 | Error | File name must match `NNNN-kebab-slug.md` or `SPEC-NNNN-kebab-slug.md`, or the folder layout `NNN-kebab-slug/README.md` (SPEC-0005). Numbers are unique across both layouts. |
 | R02 | Error | Document must begin with valid YAML frontmatter fence `---`. |
 | R03 | Error | Referenced `depends_on` stems must exist in the specification suite. |
-| R04 | Error | Top-level H1 title must equal the file stem. |
+| R04 | Error | Top-level H1 title must equal the file stem. A folder specification needs only an H1 (SPEC-0005). |
 | R05 | Warning | H2 sections must follow canonical order. |
 | R10 | Error / Warning | Max 400 lines (Error), warning if > 300 lines. |
 | R11 | Warning | Specifications must be cataloged in `specs/README.md`. |

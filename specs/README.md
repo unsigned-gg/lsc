@@ -13,6 +13,7 @@ boundary rule, and verification gate is specified as an individual, versioned co
 | [SPEC-0002-initial-roadmap.md](./SPEC-0002-initial-roadmap.md) | Initial Architecture Roadmap and Development Milestones | in-progress | high |
 | [SPEC-0003-projectfile-ci-lowering.md](./SPEC-0003-projectfile-ci-lowering.md) | Projectfile v1 Engine, CI DAG Resolution & Justfile Lowering | complete | critical |
 | [SPEC-0004-cargo-xtask-gates.md](./SPEC-0004-cargo-xtask-gates.md) | cargo xtask gates, ci and install | in-progress | high |
+| [SPEC-0005-folder-layout.md](./SPEC-0005-folder-layout.md) | Folder specification layout (`NNN-slug/README.md`) | complete | high |
 
 ## Specification Lifecycle
 
