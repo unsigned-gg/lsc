@@ -94,15 +94,19 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
+        with:
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: ci-clippy
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -j 2 -- -D warnings
 
@@ -112,13 +116,17 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
+        with:
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: ci-check
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo check
         run: cargo check --workspace --all-targets -j 2
 
@@ -128,13 +136,17 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
+        with:
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: ci-test
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo test
         run: cargo test --workspace -j 2
 
@@ -144,13 +156,17 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
+        with:
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: ci-smoke
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: smoke test
         run: make smoke
 
@@ -173,15 +189,19 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
+        with:
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: ci-xwork
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo xtask xwork
         run: cargo xtask xwork
 
@@ -201,13 +221,13 @@ jobs:
         run: |
           rustup toolchain install
           rustc --version
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Rust build cache (kache)
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v2.0.0
         with:
-          shared-key: xtask-ci
-          # The tool pins live in gates.rs, so a pin change must miss the cache.
-          key: ${{ hashFiles('crates/xtask/src/gates.rs') }}
-          # The pinned tools `cargo xtask tools` builds into .tools/.
-          cache-directories: .tools
-          cache-on-failure: true
+          version: "2.0.0"
+          cache-executables: "false"
+          github-cache: "true"
+          manifest-key: xtask-ci
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo xtask ci
         run: cargo xtask ci
